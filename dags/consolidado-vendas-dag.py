@@ -197,6 +197,7 @@ def boticario_vendas_dag():
     #         vendas_ds.append(data)
     #     vendas_ds = pd.concat(vendas_ds)
 
+    # mapping tasks relationships with >> operator (bitshift)
     merge_files = merge_files_to_csv()
     merge_files >> upload_csv >> create_dataset >> create_table >> load_csv
     load_csv >> create_view_1
