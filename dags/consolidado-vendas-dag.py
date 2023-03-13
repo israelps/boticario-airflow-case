@@ -1,20 +1,16 @@
 
-# create an airflow dag with two tasks, one that create a table in a postgres database and another that insert data on the same database
+from datetime import timedelta
+import pandas as pd
+
+import os
 
 from airflow.decorators import dag, task
+from airflow.utils.dates import days_ago
 
-from datetime import datetime, timedelta
-from airflow import AirflowException
 from airflow.providers.google.cloud.operators.bigquery import BigQueryCreateEmptyDatasetOperator, BigQueryCreateEmptyTableOperator
-from airflow.providers.google.cloud.operators.gcs import GCSListObjectsOperator
-from airflow.providers.google.cloud.hooks.gcs import GCSHook
 from airflow.providers.google.cloud.transfers.gcs_to_bigquery import GCSToBigQueryOperator
 from airflow.providers.google.cloud.transfers.local_to_gcs import LocalFilesystemToGCSOperator
-
-from airflow.utils.dates import days_ago
-from airflow.models import Variable
-import os
-import pandas as pd
+from airflow.providers.google.cloud.hooks.gcs import GCSHook
 
 import logging
 
@@ -30,14 +26,21 @@ base_dir = f"{os.getcwd()}/data/raw_vendas"
 
 @dag(
     default_args=default_args,
-    schedule_interval=timedelta(minutes=30),
+    schedule_interval='@hourly',
     description="",
+     catchup=False,
 )
 def boticario_vendas_dag():
 
     DATASET_NAME = "comercial_vendas"
     TB_NAME = "raw_vendas"
 
+    
+
+    # Set a gcp_conn_id to use a connection that you have created.
+    create_dataset = BigQueryCreateEmptyDatasetOperator(task_id="create_dataset_if_not_exists", dataset_id=DATASET_NAME, gcp_conn_id='gcp_boticario')
+
+    # schema for the table that will be created in bigquery
     schema_fields = [
             {"name": "ID_MARCA", "type": "INTEGER", "mode": "REQUIRED"},
             {"name": "MARCA", "type": "STRING", "mode": "REQUIRED"},
@@ -46,10 +49,7 @@ def boticario_vendas_dag():
             {"name": "DATA_VENDA", "type": "DATE", "mode": "REQUIRED"},
             {"name": "QTD_VENDA", "type": "INTEGER", "mode": "REQUIRED"},
         ]
-
-    # Set a gcp_conn_id to use a connection that you have created.
-    create_dataset = BigQueryCreateEmptyDatasetOperator(task_id="create_dataset_if_not_exists", dataset_id=DATASET_NAME, gcp_conn_id='gcp_boticario')
-
+    
     # create a table in a bigquery dataset
     create_table = BigQueryCreateEmptyTableOperator(
         task_id="create_table_if_not_exists",
@@ -59,6 +59,7 @@ def boticario_vendas_dag():
         gcp_conn_id='gcp_boticario',
     )
 
+    # TODO: criar um task para fazer o upload dos arquivos para o GCS
     @task()
     def merge_files_to_csv():
         # merge all xlsx files in a csv file    

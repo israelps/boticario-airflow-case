@@ -9,9 +9,7 @@ from airflow.models import Variable
 import requests
 import base64
 
-req = requests.Session()
 
-BASE_URL = "https://api.spotify.com/v1"
 
 
 # default arguments
@@ -26,6 +24,7 @@ default_args = {
     default_args=default_args,
     schedule_interval=timedelta(minutes=30),
     description="Get Spotify API token and refresh it",
+    catchup=False,
 )
 def refresh_spotify_api_token_dag():
     @task()
@@ -44,6 +43,7 @@ def refresh_spotify_api_token_dag():
 
         payload = {"grant_type": "client_credentials"}
 
+        req = requests.Session()
         response = req.post(
             "https://accounts.spotify.com/api/token",
             data=payload,
