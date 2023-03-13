@@ -28,9 +28,6 @@ default_args = {
     "retry_delay": timedelta(minutes=10),
 }
 
-
-
-
 @dag(
     default_args=default_args,
     schedule_interval="@hourly",
