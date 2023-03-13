@@ -12,10 +12,14 @@ from airflow.utils.dates import days_ago
 from airflow.models import Variable
 from airflow import AirflowException
 
-from airflow.providers.google.cloud.operators.bigquery import BigQueryCreateEmptyDatasetOperator, BigQueryCreateEmptyTableOperator
-from airflow.providers.google.cloud.transfers.gcs_to_bigquery import GCSToBigQueryOperator
+from airflow.providers.google.cloud.operators.bigquery import (
+    BigQueryCreateEmptyDatasetOperator,
+    BigQueryCreateEmptyTableOperator,
+)
+from airflow.providers.google.cloud.transfers.gcs_to_bigquery import (
+    GCSToBigQueryOperator,
+)
 from airflow.providers.google.cloud.hooks.gcs import GCSHook
-
 
 
 # default arguments for the dag
@@ -26,54 +30,58 @@ default_args = {
     "retry_delay": timedelta(minutes=15),
 }
 
+
 @dag(
     default_args=default_args,
-    schedule_interval='@hourly',
+    schedule_interval="@hourly",
     description="Collect data hackers podcast episodes from spotify api and store it on a postgres database",
     catchup=False,
 )
 def data_hackers_podcast_episodes_dag():
 
     GCP_CONN_ID = "gcp_boticario"
-    GCP_BUCKET = 'boticario-case-2'
+    GCP_BUCKET = "boticario-case-2"
 
     DATASET_NAME = "data_hackers"
     TB_NAME = "raw_data_hackers_episodes"
     VIEW_NAME = "vw_data_hackers_boticario_episodes"
 
-    
     # Create a dataset if dont exists
-    create_dataset = BigQueryCreateEmptyDatasetOperator(task_id="create_dataset_if_not_exists", dataset_id=DATASET_NAME, gcp_conn_id=GCP_CONN_ID)
+    create_dataset = BigQueryCreateEmptyDatasetOperator(
+        task_id="create_big_query_dataset_if_not_exists",
+        dataset_id=DATASET_NAME,
+        gcp_conn_id=GCP_CONN_ID,
+    )
 
     # schema for the table that will be created in bigquery
     schema_fields = [
-            {"name": "id", "type": "STRING", "mode": "REQUIRED"},
-            {"name": "name", "type": "STRING", "mode": "REQUIRED"},
-            {"name": "description", "type": "STRING", "mode": "REQUIRED"},
-            {"name": "release_date", "type": "DATE", "mode": "REQUIRED"},
-            {"name": "duration_ms", "type": "INTEGER", "mode": "REQUIRED"},
-            {"name": "language", "type": "STRING", "mode": "REQUIRED"},
-            {"name": "explicit", "type": "BOOLEAN", "mode": "REQUIRED"},
-            {"name": "type", "type": "STRING", "mode": "REQUIRED"},
-        ]
-    
+        {"name": "id", "type": "STRING", "mode": "REQUIRED"},
+        {"name": "name", "type": "STRING", "mode": "REQUIRED"},
+        {"name": "description", "type": "STRING", "mode": "REQUIRED"},
+        {"name": "release_date", "type": "DATE", "mode": "REQUIRED"},
+        {"name": "duration_ms", "type": "INTEGER", "mode": "REQUIRED"},
+        {"name": "language", "type": "STRING", "mode": "REQUIRED"},
+        {"name": "explicit", "type": "BOOLEAN", "mode": "REQUIRED"},
+        {"name": "type", "type": "STRING", "mode": "REQUIRED"},
+    ]
+
     # create a table in a bigquery dataset if not exists one
     create_table = BigQueryCreateEmptyTableOperator(
-        task_id="create_table_if_not_exists",
+        task_id="create_bigquery_table_if_not_exists",
         dataset_id=DATASET_NAME,
         table_id=TB_NAME,
         schema_fields=schema_fields,
         gcp_conn_id=GCP_CONN_ID,
-    )    
+    )
 
     @task()
-    def get_episodes() -> dict:
+    def get_episodes_from_spotify_api() -> dict:
         # get all episodes from data hackers podcast
 
         # get the spotify api token from airflow variables
         TOKEN = Variable.get("SPOTIFY_API_TOKEN")
 
-        BASE_URL = "https://api.spotify.com/v1" # base url for spotify api
+        BASE_URL = "https://api.spotify.com/v1"  # base url for spotify api
         MARKET = "BR"  # para limitar apenas show exibidos no Brasil
         SHOW_ID = "1oMIHOXsrLFENAeM743g93"  # ID DO GRUPO DATA HACKERS NO SPOTIFY
 
@@ -83,9 +91,7 @@ def data_hackers_podcast_episodes_dag():
             "Authorization": "Bearer {token}".format(token=TOKEN),
         }
 
-        SEARCH_URL = (
-            f"{BASE_URL}/shows/{SHOW_ID}/episodes?market={MARKET}"
-        )
+        SEARCH_URL = f"{BASE_URL}/shows/{SHOW_ID}/episodes?market={MARKET}"
 
         req = requests.Session()
         r = req.get(SEARCH_URL, headers=headers, timeout=5)
@@ -144,16 +150,21 @@ def data_hackers_podcast_episodes_dag():
         episodes_df.to_csv(csv_buffer, index=False)
 
         gcs_hook = GCSHook(gcp_conn_id=GCP_CONN_ID)
-        gcs_hook.upload(GCP_BUCKET, "data_hackers/podcast-episodes.csv", data=csv_buffer.getvalue(), mime_type= "text/csv")
+        gcs_hook.upload(
+            GCP_BUCKET,
+            "data_hackers/podcast-episodes.csv",
+            data=csv_buffer.getvalue(),
+            mime_type="text/csv",
+        )
 
     # create a task to load the csv from gcs to bigquery table
     load_csv_to_bigquery = GCSToBigQueryOperator(
-        task_id='load_csv_to_bigquery',
+        task_id="load_csv_to_bigquery",
         bucket=GCP_BUCKET,
         source_objects=["data_hackers/podcast-episodes.csv"],
-        destination_project_dataset_table=f'{DATASET_NAME}.{TB_NAME}',
+        destination_project_dataset_table=f"{DATASET_NAME}.{TB_NAME}",
         schema_fields=schema_fields,
-        write_disposition='WRITE_TRUNCATE',
+        write_disposition="WRITE_TRUNCATE",
         gcp_conn_id=GCP_CONN_ID,
     )
 
@@ -174,11 +185,10 @@ def data_hackers_podcast_episodes_dag():
         gcp_conn_id=GCP_CONN_ID,
     )
 
-       
-    podcasts = get_episodes()
+    podcasts = get_episodes_from_spotify_api()
     load_on_gcs = load_episodes_on_gcs(podcasts)
-    
-    load_on_gcs >> create_dataset >> create_table >>  load_csv_to_bigquery >> create_view
+
+    load_on_gcs >> create_dataset >> create_table >> load_csv_to_bigquery >> create_view
 
 
 data_hackers_podcast_episodes_dag = data_hackers_podcast_episodes_dag()

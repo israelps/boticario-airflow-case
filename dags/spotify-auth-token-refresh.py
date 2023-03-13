@@ -10,20 +10,19 @@ import requests
 import base64
 
 
-
-
 # default arguments
 default_args = {
     "owner": "israel siqueira",
-    "start_date": days_ago(2),    
+    "start_date": days_ago(2),
     "retries": 2,
     "retry_delay": timedelta(minutes=10),
 }
 
+
 @dag(
     default_args=default_args,
     schedule_interval=timedelta(minutes=30),
-    description="Get Spotify API token and refresh it",
+    description="Get Spotify API token and refresh it every 30 minutes",
     catchup=False,
 )
 def refresh_spotify_api_token_dag():
