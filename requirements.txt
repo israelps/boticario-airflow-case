@@ -1,0 +1,4 @@
+pandas
+apache-airflow-providers-google
+apache-airflow-providers-postgres
+openpyxl
