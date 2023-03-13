@@ -141,7 +141,7 @@ def data_hackers_podcasts_dag():
         )
 
     load_csv = GCSToBigQueryOperator(
-        task_id="load_csv_to_bigquery",
+        task_id="load_data_to_bigquery",
         bucket=GCP_BUCKET,
         source_objects=["data_hackers/podcasts.csv"],
         destination_project_dataset_table=f"{DATASET_NAME}.{TB_NAME}",

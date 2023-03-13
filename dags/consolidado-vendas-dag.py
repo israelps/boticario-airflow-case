@@ -99,7 +99,7 @@ def boticario_vendas_dag():
     )
 
     load_csv = GCSToBigQueryOperator(
-        task_id="load_csv_to_bigquery",
+        task_id="load_data_to_bigquery",
         bucket=GCP_BUCKET,
         source_objects=[DESTINATION_FILE],
         destination_project_dataset_table=f"{DATASET_NAME}.{TB_NAME}",
